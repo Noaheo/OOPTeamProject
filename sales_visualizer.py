@@ -2,10 +2,10 @@ import plotly.graph_objects as go
 
 
 class SalesVisualizer:
-    """Create Plotly figures from prepared sales analysis results."""
+    """Sales trend charts."""
 
     def plot_trend(self, data):
-        """Return a line chart for SalesAnalyzer.quarterly_trend() output."""
+        """Plot quarterly sales."""
         periods = data["year"].astype(str) + " Q" + data["quarter"].astype(str)
         sales = data["total_sales"].astype(object).where(data["total_sales"].notna(), None)
 
