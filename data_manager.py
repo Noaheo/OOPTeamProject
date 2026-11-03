@@ -54,6 +54,7 @@ HEADER_ALIASES = {
 # ValueError를 상속해서 오류를 새로 정의
 class DataValidationError(ValueError):
     # 원본 자료에 분석을 방해하는 오류가 있을 때 발생하는 예외
+    pass
 
 
 class SalesDataManager:
