@@ -8,7 +8,7 @@
 #   - An analyzer class is created with the DataFrame returned by SalesDataManager.filter_data():
 #       SalesAnalyzer(filtered_data).sales_summary()
 #     so DashboardManager receives the analyzer CLASSES and creates one per selection.
-#     Extra inputs (e.g. the districts to compare) are passed to the method.
+#     Extra inputs (e.g. the ranking size) are passed to the method.
 #   - Visualizers are created once; their methods take the analysis result and return a Plotly Figure.
 #   - Every feature has a fixed slot (a Panel). A slot whose object or method is not connected yet
 #     shows a "Coming soon" placeholder, and the rest of the dashboard keeps working.
@@ -28,7 +28,7 @@ ALL = "__all__"
 SECTIONS = {
     "sales": ("ti-chart-line", "Sales Analysis", "How sales change over time, by day and by hour"),
     "demographic": ("ti-users", "Demographic Analysis", "Who the customers are, by gender and age"),
-    "comparison": ("ti-arrows-diff", "District Comparison", "Rank every district and compare the ones you choose"),
+    "comparison": ("ti-arrows-diff", "District Comparison", "Rank commercial districts by sales"),
 }
 
 CLASS_NAMES = {
@@ -58,42 +58,33 @@ class Panel:
 PANELS = {
     # Key-figure cards
     "summary": Panel("Total sales · Transactions", "", "sales_analyzer", "sales_summary"),
-    "growth": Panel("Change vs. previous period", "", "sales_analyzer", "calculate_growth_rate"),
-    "major_group": Panel("Main customer group", "", "demographic_analyzer",
-                         "find_major_customer_group"),
+    "major_group": Panel("Top age group", "", "demographic_analyzer", "top_age_group"),
     # Sales Analysis
     "trend": Panel("Quarterly sales trend", "Total sales in every quarter of the data",
                    "sales_analyzer", "quarterly_trend", "sales_visualizer", "plot_trend", "line",
                    "All years", "A trend needs every quarter, so the Year and Quarter filters are not applied."),
     "day_pattern": Panel("Sales by day of week", "Which days bring in the most sales",
-                         "sales_analyzer", "analyze_time_pattern", "sales_visualizer",
-                         "plot_day_pattern", "bar"),
+                         "sales_analyzer", "daily_sales", "sales_visualizer", "plot_days", "bar"),
     "time_pattern": Panel("Sales by time of day", "When during the day sales happen",
-                          "sales_analyzer", "analyze_time_pattern", "sales_visualizer",
-                          "plot_time_pattern", "bar"),
+                          "sales_analyzer", "time_slot_sales", "sales_visualizer", "plot_time_slots", "bar"),
     # Demographic Analysis
-    "gender": Panel("Sales share by gender", "Male vs. female customers",
+    "gender": Panel("Sales by gender", "Estimated sales for male and female customers",
                     "demographic_analyzer", "gender_sales", "demographic_visualizer",
-                    "plot_gender", "pie"),
+                    "plot_gender", "bar"),
     "age": Panel("Sales by age group", "From 10s to 60+",
-                 "demographic_analyzer", "analyze_age", "demographic_visualizer", "plot_age", "bar"),
+                 "demographic_analyzer", "age_group_sales", "demographic_visualizer", "plot_age_groups", "bar"),
     # District Comparison
     "ranking": Panel("District ranking", "By total sales for the selected industry and period",
                      "district_comparator", "rank_districts", "district_visualizer",
                      "plot_ranking", "bar",
                      "All districts", "A ranking compares every district, so the District filter is not applied."),
-    "compare": Panel("Sales of chosen districts", "Same industry and period for each district",
-                     "district_comparator", "compare_districts", "district_visualizer",
-                     "plot_comparison", "bar"),
-    "difference": Panel("Difference", "Gap to the highest-selling district",
-                        "district_comparator", "calculate_difference", shape="table"),
 }
 
 # Panels in each section; a section is shown when at least one of them is ready.
 SECTION_PANELS = {
     "sales": ["trend", "day_pattern", "time_pattern"],
     "demographic": ["gender", "age"],
-    "comparison": ["ranking", "compare", "difference"],
+    "comparison": ["ranking"],
 }
 
 SKELETONS = {
@@ -176,12 +167,6 @@ class FilterState:
     def period_label(self):
         return f"{self.year} " + (f"Q{self.quarter}" if self.quarter else "(all quarters)")
 
-    def previous_period(self):
-        # The period that the change rate is compared against: previous quarter, or previous year.
-        if self.quarter is None:
-            return self.year - 1, None
-        return (self.year, self.quarter - 1) if self.quarter > 1 else (self.year - 1, 4)
-
 
 class DashboardManager:
     # Responsible for the user interface and the workflow between objects
@@ -217,7 +202,7 @@ class DashboardManager:
         filters = self.render_filters()
 
         # Only features that a team class already provides are shown; a section with
-        # nothing ready yet is left out. New methods appear automatically once merged.
+        # nothing ready yet is left out. Registered panels appear once their methods exist.
         self.render_overview(filters)
         for key, render in (("sales", self.render_sales_analysis),
                             ("demographic", self.render_demographic_analysis),
@@ -274,18 +259,11 @@ class DashboardManager:
             st.warning("No data for the selected filters. Try changing them.")
             return
 
-        prev_year, prev_quarter = filters.previous_period()
         cards = []   # (panel key, labels, arguments)
         if self._ready("summary"):
             cards.append(("summary", ["Total sales", "Transactions"], (data,)))
-        if self._ready("growth"):
-            previous = self.data_manager.filter_data(
-                district=filters.district, industry=filters.industry,
-                year=prev_year, quarter=prev_quarter)
-            cards.append(("growth", [f"Change vs. {self._period_text(prev_year, prev_quarter)}"],
-                          (data, previous)))
         if self._ready("major_group"):
-            cards.append(("major_group", ["Main customer group"], (data,)))
+            cards.append(("major_group", ["Top age group"], (data,)))
         if not cards:
             return
         columns = iter(st.columns(sum(len(labels) for _, labels, _ in cards)))
@@ -303,7 +281,7 @@ class DashboardManager:
                    ("time_pattern", 1, lambda: self._render_panel("time_pattern", data))])
 
     # ------------------------------------------------------------------
-    # Demographic Analysis — gender share and age groups
+    # Demographic Analysis — sales by gender and age group
     # ------------------------------------------------------------------
     def render_demographic_analysis(self, filters):
         data = self._period_data(filters)
@@ -311,19 +289,11 @@ class DashboardManager:
                    ("age", 3, lambda: self._render_panel("age", data))])
 
     # ------------------------------------------------------------------
-    # District Comparison — ranking (Top/Bottom 5/10) and chosen districts side by side
+    # District Comparison — ranking (Top/Bottom 5/10)
     # ------------------------------------------------------------------
     def render_comparison(self, filters):
-        compare_keys = [k for k in ("compare", "difference") if self._ready(k)]
-        parts = []
         if self._ready("ranking"):
-            parts.append((2, lambda: self._render_ranking(filters)))
-        if compare_keys:
-            parts.append((3, lambda: self._render_chosen(filters, compare_keys)))
-        columns = st.columns([w for w, _ in parts]) if len(parts) > 1 else [st.container()]
-        for column, (_, draw) in zip(columns, parts):
-            with column:
-                draw()
+            self._render_ranking(filters)
 
     def _render_ranking(self, filters):
         with self._card():
@@ -334,16 +304,6 @@ class DashboardManager:
         self._render_panel("ranking", self._ranking_data(filters), count, direction.lower(),
                            title=f"{direction} {count} districts")
 
-    def _render_chosen(self, filters, keys):
-        with self._card():
-            st.markdown('<div class="dash-panel-title">Districts to compare</div>'
-                        '<div class="dash-panel-desc">Choose 2 to 5. The selected industry and '
-                        'period apply to all of them.</div>', unsafe_allow_html=True)
-            chosen = self._pick_districts()
-        compare_data = self._compare_data(filters, chosen)
-        for key in keys:
-            self._render_panel(key, compare_data, chosen)
-
     def _row(self, items):
         # items: (panel key, width, draw function). Ready panels share the row; one fills it alone.
         items = [(width, draw) for key, width, draw in items if self._ready(key)]
@@ -353,15 +313,6 @@ class DashboardManager:
         for column, (_, draw) in zip(columns, items):
             with column:
                 draw()
-
-    def _pick_districts(self):
-        # The chosen districts feed the comparison chart, the difference table and the customer mix.
-        chosen = st.multiselect(
-            "Districts to compare", sorted(self._district_names, key=self._district_names.get),
-            max_selections=5,
-            format_func=self._district_names.get, placeholder="Type a district name, e.g. Gangnam",
-            key="compare_widget", label_visibility="collapsed")
-        return chosen
 
     # ------------------------------------------------------------------
     # Panel rendering
@@ -394,7 +345,7 @@ class DashboardManager:
                 plot = getattr(getattr(self, panel.visualizer), panel.plot)
                 figure = self._safe_call(plot, result, label=self._label(panel.visualizer, panel.plot))
                 if figure is not None:
-                    st.plotly_chart(self._fit(figure), use_container_width=True,
+                    st.plotly_chart(self._fit(figure), width="stretch",
                                     config={"displayModeBar": False})
                 return
             self._show_result(result)
@@ -466,18 +417,6 @@ class DashboardManager:
         return self.data_manager.filter_data(
             industry=filters.industry, year=filters.year, quarter=filters.quarter)
 
-    def _compare_data(self, filters, chosen):
-        # None until at least two districts are chosen.
-        if len(chosen) < 2:
-            return None
-        return self.data_manager.filter_data(
-            district=list(chosen), industry=filters.industry,
-            year=filters.year, quarter=filters.quarter)
-
-    @staticmethod
-    def _period_text(year, quarter):
-        return f"{year} Q{quarter}" if quarter else str(year)
-
     @staticmethod
     def _top(ranking, direction, count):
         # Assumes the ranking is sorted by sales, highest first; only the shown rows are kept.
@@ -543,8 +482,8 @@ class DashboardManager:
     @staticmethod
     def _show_result(result):
         if isinstance(result, (pd.DataFrame, pd.Series)):
-            st.dataframe(result, use_container_width=True, hide_index=True)
+            st.dataframe(result, width="stretch", hide_index=True)
         elif isinstance(result, dict):
-            st.dataframe(pd.Series(result, name="value"), use_container_width=True)
+            st.dataframe(pd.Series(result, name="value"), width="stretch")
         else:
             st.write(result)

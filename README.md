@@ -1,6 +1,30 @@
 # OOPTeamProject
 Seoul Commercial District Sales Analysis Dashboard
 
+## Run the dashboard
+
+From the repository root:
+
+```sh
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+```
+
+On the first launch, the app extracts `data(23~25).zip` into `data/` if that folder
+has no CSV files. It then loads and cleans the available CSVs with SalesDataManager.
+You can also place the source CSV files directly in `data/` before starting.
+
+The demo shows sales totals, quarterly trends and sales by gender. District
+rankings appear when DistrictComparator and DistrictVisualizer are available.
+The industry, district, year and quarter selectors filter the summary and gender
+chart. The trend keeps all periods; rankings keep all districts. Both charts
+show which filters they leave out.
+
+Registered future panels use the proposal's `daily_sales()`, `time_slot_sales()`,
+`age_group_sales()` and `top_age_group()` methods. They stay hidden until the
+corresponding methods are implemented. Year comparisons, growth metrics and
+comparisons between selected districts will be connected in the final version.
+
 ## Sales demo
 
 Install the sales modules' dependencies:
@@ -67,6 +91,6 @@ gender_figure = DemographicVisualizer().plot_gender(gender_data)
 
 `gender_sales()` returns a new DataFrame with two rows, `Male` then `Female`, and columns `gender`, `total_sales` (KRW), and `total_transactions` (transaction count). The two numeric columns use pandas nullable `Int64`. It sums the original `남성_매출_금액`, `여성_매출_금액`, `남성_매출_건수`, and `여성_매출_건수` columns and preserves the supplied data. Filters belong to `SalesDataManager`; the analyzer keeps a snapshot and does not apply additional filters.
 
-Missing values are excluded from totals; an entirely missing metric remains missing rather than becoming zero. An empty selection returns two rows of zero totals. `plot_gender()` returns a Plotly bar Figure without changing its input; missing sales serialize as null rather than zero. The dashboard can display it with `st.plotly_chart(gender_figure)` and show transaction counts in a table. This branch does not implement a Streamlit dashboard or age-group analysis.
+Missing values are excluded from totals; an entirely missing metric remains missing rather than becoming zero. An empty selection returns two rows of zero totals. `plot_gender()` returns a Plotly bar Figure without changing its input; missing sales serialize as null rather than zero. The dashboard can display it with `st.plotly_chart(gender_figure)` and show transaction counts in a table. Age-group analysis is planned for the final version.
 
 Run `python -m unittest discover -s tests -v` to include the gender unit tests and the real 2024–2025 CSV integration check. The latter independently checks both gender amounts and counts, including district/industry/year filtering.
