@@ -71,12 +71,12 @@ class SalesDataManager:
         self._processed_data = None # 검증 및 전처리 마친 데이터
         self._report = {} # 행 수, 중복, 결측값 등의 검사 결과
 
-    @property
+    
     def processed_data(self):
         #전체 전처리 자료의 복사본. 분석 객체가 공유 원본을 바꾸지 못하게 함
         return self._require_ready().copy()
 
-    @property
+    
     def validation_report(self):
         #행 수, 중복 제거 수, 결측값 등 검증 결과의 복사본
         return deepcopy(self._report)
@@ -133,7 +133,7 @@ class SalesDataManager:
         # 2단계: 값을 검사하고 숫자 형식·연도·분기·중복을 정리
         if self._raw_data is None:
             if self._processed_data is not None:
-                return self.processed_data
+                return self.processed_data()
             raise RuntimeError("먼저 load_data()로 CSV를 읽으세요.")
         frame = self._raw_data.copy()
         if frame.empty:
@@ -186,16 +186,16 @@ class SalesDataManager:
         })
         self._processed_data = frame
         self._raw_data = None
-        return self.processed_data
+        return self.processed_data()
 
     def filter_data(self, district=None, industry=None, year=None, quarter=None,
                     period=None):
-        """3단계: 선택 조건을 모두 만족하는 자료의 복사본을 반환한다.
+        # 3단계: 선택 조건을 모두 만족하는 자료의 복사본을 반환한다.
 
-        district/industry에는 상권·업종 '코드'를 넣는다.
-        None은 해당 조건 전체, []는 선택 없음이다. 값 하나 또는 목록을 받는다.
-        추이 분석에는 여러 분기를, 상권 순위에는 모든 상권을 유지해야 한다.
-        """
+        # district/industry에는 상권·업종 '코드'를 넣는다.
+        # None은 해당 조건 전체, []는 선택 없음이다. 값 하나 또는 목록을 받는다.
+        # 추이 분석에는 여러 분기를, 상권 순위에는 모든 상권을 유지해야 한다.
+        
         frame = self._require_ready()
         mask = pd.Series(True, index=frame.index)  # 각 행을 남길지 True/False로 표시한다.
         for column, selection in [(DISTRICT, district), (INDUSTRY, industry),
