@@ -1,0 +1,14 @@
+[theme]
+base = "light"
+primaryColor = "#3B5BDB"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F6F7FB"
+textColor = "#1F2937"
+
+[client]
+toolbarMode = "minimal"
+
+[server]
+# Pick up code changes automatically (works without the watchdog package)
+fileWatcherType = "poll"
+runOnSave = true
