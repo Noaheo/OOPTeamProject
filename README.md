@@ -10,6 +10,27 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
+### Windows launcher
+
+Download `run_local.bat` and double-click it on Windows 10/11 x64. The file works
+on its own: Python, Git and a virtual environment do not need to be installed.
+
+On the first run, it downloads a private Python runtime, the tested project
+snapshot and its CSV archive, then installs the required libraries. Internet
+access to Python.org, PyPI and GitHub is required for this setup. Allow a few
+minutes before the dashboard opens in the browser.
+
+The files are kept under `%LOCALAPPDATA%\OOPTeamProjectLocal`. Later launches
+reuse this local copy. The launcher does not change the system Python or PATH,
+and does not require administrator rights.
+
+The downloaded project is the tested `dev` snapshot at `84b1f413`. It uses
+Python 3.14.6, Streamlit 1.66.1, pandas 3.1.0 and Plotly 7.1.0.
+
+Keep the terminal window open during use. The address is printed there
+(starting at `http://127.0.0.1:8501`; a free port is selected automatically).
+Press `Ctrl+C` to stop the dashboard.
+
 On the first launch, the app extracts `data(23~25).zip` into `data/` if that folder
 has no CSV files. It then loads and cleans the available CSVs with SalesDataManager.
 You can also place the source CSV files directly in `data/` before starting.
