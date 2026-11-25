@@ -13,6 +13,36 @@ class SalesAnalyzerTests(unittest.TestCase):
             "quarter": [1, 4, 1, 1],
             "당월_매출_금액": pd.Series([400, 300, 100, 200], dtype="Int64"),
             "당월_매출_건수": pd.Series([40, 30, 10, 20], dtype="Int64"),
+            "주중_매출_금액": pd.Series([300, 200, 70, 130], dtype="Int64"),
+            "주말_매출_금액": pd.Series([100, 100, 30, 70], dtype="Int64"),
+            "주중_매출_건수": pd.Series([30, 20, 7, 13], dtype="Int64"),
+            "주말_매출_건수": pd.Series([10, 10, 3, 7], dtype="Int64"),
+            "월요일_매출_금액": pd.Series([60, 40, 10, 30], dtype="Int64"),
+            "화요일_매출_금액": pd.Series([60, 40, 15, 25], dtype="Int64"),
+            "수요일_매출_금액": pd.Series([60, 40, 15, 25], dtype="Int64"),
+            "목요일_매출_금액": pd.Series([60, 40, 15, 25], dtype="Int64"),
+            "금요일_매출_금액": pd.Series([60, 40, 15, 25], dtype="Int64"),
+            "토요일_매출_금액": pd.Series([50, 50, 15, 35], dtype="Int64"),
+            "일요일_매출_금액": pd.Series([50, 50, 15, 35], dtype="Int64"),
+            "월요일_매출_건수": pd.Series([6, 4, 1, 3], dtype="Int64"),
+            "화요일_매출_건수": pd.Series([6, 4, 1, 3], dtype="Int64"),
+            "수요일_매출_건수": pd.Series([6, 4, 2, 2], dtype="Int64"),
+            "목요일_매출_건수": pd.Series([6, 4, 2, 2], dtype="Int64"),
+            "금요일_매출_건수": pd.Series([6, 4, 1, 3], dtype="Int64"),
+            "토요일_매출_건수": pd.Series([5, 5, 1, 4], dtype="Int64"),
+            "일요일_매출_건수": pd.Series([5, 5, 2, 3], dtype="Int64"),
+            "시간대_00~06_매출_금액": pd.Series([20, 10, 5, 5], dtype="Int64"),
+            "시간대_06~11_매출_금액": pd.Series([40, 30, 10, 20], dtype="Int64"),
+            "시간대_11~14_매출_금액": pd.Series([120, 90, 30, 60], dtype="Int64"),
+            "시간대_14~17_매출_금액": pd.Series([80, 60, 20, 40], dtype="Int64"),
+            "시간대_17~21_매출_금액": pd.Series([100, 80, 25, 55], dtype="Int64"),
+            "시간대_21~24_매출_금액": pd.Series([40, 30, 10, 20], dtype="Int64"),
+            "시간대_00~06_매출_건수": pd.Series([2, 1, 0, 1], dtype="Int64"),
+            "시간대_06~11_매출_건수": pd.Series([4, 3, 1, 2], dtype="Int64"),
+            "시간대_11~14_매출_건수": pd.Series([12, 9, 3, 6], dtype="Int64"),
+            "시간대_14~17_매출_건수": pd.Series([8, 6, 2, 4], dtype="Int64"),
+            "시간대_17~21_매출_건수": pd.Series([10, 8, 3, 5], dtype="Int64"),
+            "시간대_21~24_매출_건수": pd.Series([4, 3, 1, 2], dtype="Int64"),
         })
 
     def test_summary_sums_sales_and_transaction_counts(self):
@@ -84,6 +114,83 @@ class SalesAnalyzerTests(unittest.TestCase):
         assert_frame_equal(self.sales_data, original)
         self.assertEqual(analyzer.quarterly_trend()["total_sales"].tolist(),
                          [300, 300, 400])
+
+    def test_year_comparison_matches_quarters_and_growth(self):
+        comp = SalesAnalyzer(self.sales_data).year_comparison(2024, 2025)
+        self.assertEqual(comp.columns.tolist(),
+                         ["quarter", "year_a", "year_b", "sales_a", "sales_b", "difference", "growth_rate"])
+        self.assertEqual(len(comp), 1)
+        self.assertEqual(comp.iloc[0]["quarter"], 1)
+        self.assertEqual(comp.iloc[0]["sales_a"], 300)
+        self.assertEqual(comp.iloc[0]["sales_b"], 400)
+        self.assertEqual(comp.iloc[0]["difference"], 100)
+        self.assertAlmostEqual(comp.iloc[0]["growth_rate"], 33.33, places=2)
+
+    def test_year_comparison_empty_or_unmatched_and_invalid_years(self):
+        analyzer = SalesAnalyzer(self.sales_data)
+        unmatched = analyzer.year_comparison(2023, 2024)
+        self.assertTrue(unmatched.empty)
+        self.assertEqual(unmatched.columns.tolist(),
+                         ["quarter", "year_a", "year_b", "sales_a", "sales_b", "difference", "growth_rate"])
+
+        empty_comp = SalesAnalyzer(self.sales_data.iloc[:0]).year_comparison(2024, 2025)
+        self.assertTrue(empty_comp.empty)
+
+        for bad_a, bad_b in ((2024, 2024), (True, 2025), (2024, "2025")):
+            with self.assertRaises(ValueError):
+                analyzer.year_comparison(bad_a, bad_b)
+
+    def test_year_growth_summary_totals_and_zero_baseline(self):
+        summary = SalesAnalyzer(self.sales_data).year_growth_summary(2024, 2025)
+        self.assertEqual(summary, {
+            "year_a": 2024,
+            "year_b": 2025,
+            "matched_quarters": [1],
+            "sales_a": 300,
+            "sales_b": 400,
+            "difference": 100,
+            "growth_rate": 33.33,
+        })
+
+        zero_base = self.sales_data.copy()
+        zero_base.loc[(zero_base["year"] == 2024) & (zero_base["quarter"] == 1), "당월_매출_금액"] = 0
+        summary_zero = SalesAnalyzer(zero_base).year_growth_summary(2024, 2025)
+        self.assertIsNone(summary_zero["growth_rate"])
+        self.assertEqual(summary_zero["difference"], 400)
+
+        no_match = SalesAnalyzer(self.sales_data).year_growth_summary(2023, 2025)
+        self.assertEqual(no_match["matched_quarters"], [])
+        self.assertIsNone(no_match["growth_rate"])
+
+    def test_weekday_weekend_sums_and_shares(self):
+        result = SalesAnalyzer(self.sales_data).weekday_weekend()
+        self.assertEqual(result["day_type"].tolist(), ["Weekday", "Weekend"])
+        self.assertEqual(result["total_sales"].tolist(), [700, 300])
+        self.assertEqual(result["total_transactions"].tolist(), [70, 30])
+        self.assertAlmostEqual(result["sales_share"].iloc[0], 70.0, places=2)
+        self.assertAlmostEqual(result["sales_share"].iloc[1], 30.0, places=2)
+
+    def test_daily_sales_and_time_slot_sales(self):
+        analyzer = SalesAnalyzer(self.sales_data)
+        daily = analyzer.daily_sales()
+        self.assertEqual(daily["day"].tolist(), ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
+        self.assertEqual(daily["total_sales"].tolist(), [140, 140, 140, 140, 140, 150, 150])
+        self.assertEqual(daily["total_transactions"].sum(), 100)
+
+        slots = analyzer.time_slot_sales()
+        self.assertEqual(slots["time_slot"].tolist(), [
+            "00:00-06:00", "06:00-11:00", "11:00-14:00",
+            "14:00-17:00", "17:00-21:00", "21:00-24:00",
+        ])
+        self.assertEqual(slots["total_sales"].tolist(), [40, 100, 300, 200, 260, 100])
+        self.assertEqual(slots["total_transactions"].sum(), 100)
+
+    def test_empty_data_day_and_time_breakdowns(self):
+        analyzer = SalesAnalyzer(self.sales_data.iloc[:0])
+        self.assertEqual(analyzer.weekday_weekend()["total_sales"].tolist(), [0, 0])
+        self.assertEqual(analyzer.weekday_weekend()["sales_share"].tolist(), [0.0, 0.0])
+        self.assertEqual(analyzer.daily_sales()["total_sales"].tolist(), [0] * 7)
+        self.assertEqual(analyzer.time_slot_sales()["total_sales"].tolist(), [0] * 6)
 
 
 if __name__ == "__main__":

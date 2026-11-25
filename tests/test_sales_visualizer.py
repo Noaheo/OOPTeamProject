@@ -56,6 +56,66 @@ class SalesVisualizerTests(unittest.TestCase):
         self.assertEqual(serialized["data"][0]["y"], [300, None, 400])
         self.assertFalse(figure.data[0].connectgaps)
 
+    def test_custom_template_and_palette(self):
+        vis = SalesVisualizer(template="plotly_dark", color_palette=["#111111", "#222222"])
+        self.assertEqual(vis._template, "plotly_dark")
+        self.assertEqual(vis._color_palette, ["#111111", "#222222"])
+        fig = vis.plot_trend(self.trend)
+        self.assertEqual(fig.data[0].line.color, "#111111")
+
+    def test_plot_years_grouped_bars_and_empty_annotation(self):
+        comp = pd.DataFrame({
+            "quarter": [1, 2],
+            "year_a": [2024, 2024],
+            "year_b": [2025, 2025],
+            "sales_a": pd.Series([100, 200], dtype="Int64"),
+            "sales_b": pd.Series([120, pd.NA], dtype="Int64"),
+            "difference": pd.Series([20, pd.NA], dtype="Int64"),
+            "growth_rate": [20.0, float("nan")],
+        })
+        fig = SalesVisualizer().plot_years(comp)
+        self.assertEqual(len(fig.data), 2)
+        self.assertEqual(fig.layout.barmode, "group")
+        self.assertEqual(list(fig.data[0].x), ["Q1", "Q2"])
+        serialized = json.loads(fig.to_json())
+        self.assertEqual(serialized["data"][1]["y"], [120, None])
+
+        empty_fig = SalesVisualizer().plot_years(comp.iloc[:0])
+        self.assertEqual(len(empty_fig.data), 0)
+        self.assertTrue(len(empty_fig.layout.annotations) > 0)
+
+    def test_plot_day_types_days_and_time_slots(self):
+        vis = SalesVisualizer()
+        day_types = pd.DataFrame({
+            "day_type": ["Weekday", "Weekend"],
+            "total_sales": pd.Series([700, 300], dtype="Int64"),
+            "total_transactions": pd.Series([70, 30], dtype="Int64"),
+            "sales_share": [70.0, 30.0],
+        })
+        fig_dt = vis.plot_day_types(day_types)
+        self.assertEqual(list(fig_dt.data[0].x), ["Weekday", "Weekend"])
+        fig_dt.to_json()
+
+        days = pd.DataFrame({
+            "day": ["Mon", "Sat", "Sun"],
+            "total_sales": pd.Series([100, 200, pd.NA], dtype="Int64"),
+            "total_transactions": pd.Series([10, 20, pd.NA], dtype="Int64"),
+        })
+        fig_days = vis.plot_days(days)
+        self.assertEqual(list(fig_days.data[0].marker.color), [
+            vis._color_palette[0], vis._color_palette[1], vis._color_palette[1],
+        ])
+        self.assertEqual(json.loads(fig_days.to_json())["data"][0]["y"], [100, 200, None])
+
+        slots = pd.DataFrame({
+            "time_slot": ["00:00-06:00", "11:00-14:00"],
+            "total_sales": pd.Series([50, 300], dtype="Int64"),
+            "total_transactions": pd.Series([5, 30], dtype="Int64"),
+        })
+        fig_slots = vis.plot_time_slots(slots)
+        self.assertEqual(list(fig_slots.data[0].x), ["00:00-06:00", "11:00-14:00"])
+        fig_slots.to_json()
+
 
 if __name__ == "__main__":
     unittest.main()
