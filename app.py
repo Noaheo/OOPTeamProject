@@ -51,6 +51,8 @@ def load_team_classes():
         "demographic_visualizer": ("demographic_visualizer", "DemographicVisualizer"),
         "district_comparator": ("district_comparator", "DistrictComparator"),
         "district_visualizer": ("district_visualizer", "DistrictVisualizer"),
+        "map_analyzer": ("map_analyzer", "MapAnalyzer"),
+        "map_visualizer": ("map_visualizer", "MapVisualizer"),
     }
     for name, (module_name, class_name) in sources.items():
         try:

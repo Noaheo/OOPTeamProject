@@ -221,3 +221,4 @@ __marimo__/
 
 # 압축을 푼 원본 CSV (app.py가 data(23~25).zip에서 자동으로 풀어 사용)
 data/
+data(23~25)/
