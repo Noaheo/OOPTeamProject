@@ -1,0 +1,220 @@
+{
+  "source": {
+    "source": "Seoul Metropolitan Government commercial-area analysis map",
+    "source_page": "https://golmok.seoul.go.kr/commercialArea/commercialArea.do",
+    "source_endpoint": "https://golmok.seoul.go.kr/gis/wfs/getTrdarFtByKey.json",
+    "source_client_js": "https://golmok.seoul.go.kr/js/citizen/gis/map_link.js",
+    "source_projection_js": "https://golmok.seoul.go.kr/js/gis_lib/ol5dev/ol5dev-1.0.0.min.js",
+    "retrieved_date": "2026-11-26",
+    "api_key_required": false,
+    "crs": "EPSG:5181",
+    "proj4": "+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=500000 +ellps=GRS80 +units=m +no_defs",
+    "archive_unique_codes": 1587,
+    "source_unique_codes": 1607,
+    "matched_codes": 1587,
+    "missing_archive_codes": [],
+    "source_extra_codes": [
+      "3130011",
+      "3130017",
+      "3130019",
+      "3130021",
+      "3130034",
+      "3130080",
+      "3130114",
+      "3130124",
+      "3130130",
+      "3130155",
+      "3130156",
+      "3130158",
+      "3130164",
+      "3130187",
+      "3130188",
+      "3130193",
+      "3130234",
+      "3130237",
+      "3130239",
+      "3130309"
+    ],
+    "changed_display_names": [
+      {
+        "code": "3110379",
+        "archive_name": "KT&G 북부지사",
+        "geometry_name": "KTNG 북부지사"
+      }
+    ],
+    "archive_counts_by_type": {
+      "A": 1047,
+      "D": 249,
+      "R": 285,
+      "U": 6
+    },
+    "files": {
+      "features_alley_archive.json": {
+        "bytes": 4196926,
+        "sha256": "ef56af794284853a629bdd8bae7a279be2fd4688e76d6c87aa07b547887c36bb"
+      },
+      "features_devlop_all.json": {
+        "bytes": 1180626,
+        "sha256": "49d3d4f4a670492c8a82405a339eea8ebdf82e7ec7a71e09cda749f011932e12"
+      },
+      "features_tradition_all.json": {
+        "bytes": 639270,
+        "sha256": "6f0d206e0ebdacb23ce15ebb9bc52408a383fd870a5d4b8e801abe3c9c40e7af"
+      },
+      "features_tour_all.json": {
+        "bytes": 74700,
+        "sha256": "ab7c0d8d7842670f1d197ae5dcb0cbdec80a3a68f9edcee8c5fb3c5048e7caa2"
+      }
+    },
+    "samples": [
+      {
+        "idx": "3110001",
+        "label": "이북5도청사",
+        "ref": "alley",
+        "area": 108528.517619924
+      },
+      {
+        "idx": "3120189",
+        "label": "강남역",
+        "ref": "devlop",
+        "area": 617546.774323915
+      },
+      {
+        "idx": "3001492",
+        "label": "명동 남대문 북창동 다동 무교동 관광특구",
+        "ref": "tour",
+        "area": 983617.877411214
+      }
+    ],
+    "boundary_time_note": "Current official map endpoint queried in 2026; development, market and tourism layer identifiers in client reference 2023. Quarter-specific historical boundary versions are not supplied by this endpoint."
+  },
+  "preparation": {
+    "retrieved_date": "2026-11-26",
+    "archive_codes": 1587,
+    "source_codes": 1607,
+    "emitted_codes": 1587,
+    "missing_codes": [],
+    "excluded_source_codes": [
+      "3130011",
+      "3130017",
+      "3130019",
+      "3130021",
+      "3130034",
+      "3130080",
+      "3130114",
+      "3130124",
+      "3130130",
+      "3130155",
+      "3130156",
+      "3130158",
+      "3130164",
+      "3130187",
+      "3130188",
+      "3130193",
+      "3130234",
+      "3130237",
+      "3130239",
+      "3130309"
+    ],
+    "counts_by_type": {
+      "A": 1047,
+      "D": 249,
+      "R": 285,
+      "U": 6
+    },
+    "source_crs": "EPSG:5181",
+    "output_crs": "EPSG:4326",
+    "simplification_tolerance_m": 5,
+    "preserve_topology": true,
+    "selected_tolerances_m": {
+      "5.0": 1324,
+      "2.0": 223,
+      "1.0": 34,
+      "0.0": 6
+    },
+    "maximum_area_change_ratio": 0.01,
+    "boundary_coordinate_decimals": 6,
+    "location_coordinate_decimals": 7,
+    "point_method": "interior representative point of original/output polygon intersection",
+    "all_points_inside_source_and_emitted_polygons": true,
+    "all_emitted_geometries_valid": true,
+    "seoul_coordinate_envelope_check": {
+      "longitude": [
+        126.7,
+        127.3
+      ],
+      "latitude": [
+        37.4,
+        37.75
+      ]
+    },
+    "emitted_boundary_bounds": [
+      126.797144,
+      37.433698,
+      127.175132,
+      37.694031
+    ],
+    "source_geometry_repairs": [
+      {
+        "code": "3110137",
+        "area_change_m2": 5.820766091346741e-11
+      },
+      {
+        "code": "3110234",
+        "area_change_m2": -1.4551915228366852e-11
+      },
+      {
+        "code": "3110270",
+        "area_change_m2": 2.1827872842550278e-11
+      },
+      {
+        "code": "3110407",
+        "area_change_m2": -5.820766091346741e-11
+      },
+      {
+        "code": "3110515",
+        "area_change_m2": -5.820766091346741e-11
+      },
+      {
+        "code": "3110542",
+        "area_change_m2": 1.4551915228366852e-11
+      }
+    ],
+    "source_vertices": 217111,
+    "output_vertices": 38957,
+    "max_boundary_displacement_m": 30.294989546593907,
+    "max_absolute_area_change_ratio": 0.009948701008924643,
+    "build_versions": {
+      "python": "3.14.6",
+      "pyproj": "3.8.0",
+      "shapely": "2.2.0"
+    },
+    "files": {
+      "district_locations.csv": {
+        "bytes": 49230,
+        "sha256": "fe4ee6801bea4a1ba22e1fa504bc7bb29b235e92bf2b6228b58f94087d43d2a2"
+      },
+      "district_boundaries.geojson": {
+        "bytes": 1077053,
+        "sha256": "35c98b65743ec3a7b519b94667f71a1d72b265d13d10976563fb0696cfdcbdb4"
+      }
+    },
+    "sample_locations": [
+      {
+        "district_code": "3001492",
+        "latitude": "37.5633431",
+        "longitude": "126.9825884"
+      },
+      {
+        "district_code": "3110001",
+        "latitude": "37.6094483",
+        "longitude": "126.9575508"
+      },
+      {
+        "district_code": "3120189",
+        "latitude": "37.4979602",
+        "longitude": "127.0276328"
+      }
+    ]
+  }
+}
