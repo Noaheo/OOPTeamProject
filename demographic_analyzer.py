@@ -42,12 +42,12 @@ class DemographicAnalyzer:
             ("total_sales", "sales_share"),
             ("total_transactions", "transaction_share"),
         ):
-            total = result[source_col].sum(min_count=1)
+            total = result[source_col].sum(min_count=len(result))
             shares = []
             for value in result[source_col]:
-                if pd.isna(value):
+                if pd.isna(value) or pd.isna(total):
                     shares.append(float("nan"))
-                elif pd.isna(total) or int(total) == 0:
+                elif int(total) == 0:
                     shares.append(0.0)
                 else:
                     shares.append(round(int(value) / int(total) * 100, 2))

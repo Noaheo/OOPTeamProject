@@ -129,8 +129,8 @@ class SalesAnalyzer:
         })
 
     def year_growth_summary(self, year_a=2024, year_b=2025):
-        """Return overall YoY comparison totals and growth percentage across matched quarters."""
-        comparison = self.year_comparison(year_a, year_b)
+        """Summarize growth for quarters with known sales in both years."""
+        comparison = self.year_comparison(year_a, year_b).dropna(subset=["sales_a", "sales_b"])
         if comparison.empty:
             return {
                 "year_a": year_a,
@@ -142,17 +142,10 @@ class SalesAnalyzer:
                 "growth_rate": None,
             }
 
-        raw_a = comparison["sales_a"].sum(min_count=1)
-        raw_b = comparison["sales_b"].sum(min_count=1)
-        sales_a = None if pd.isna(raw_a) else int(raw_a)
-        sales_b = None if pd.isna(raw_b) else int(raw_b)
-
-        if sales_a is None or sales_b is None:
-            diff = None
-            growth = None
-        else:
-            diff = sales_b - sales_a
-            growth = None if sales_a == 0 else round(diff / sales_a * 100, 2)
+        sales_a = int(comparison["sales_a"].sum())
+        sales_b = int(comparison["sales_b"].sum())
+        diff = sales_b - sales_a
+        growth = None if sales_a == 0 else round(diff / sales_a * 100, 2)
 
         return {
             "year_a": year_a,
@@ -167,12 +160,12 @@ class SalesAnalyzer:
     def weekday_weekend(self):
         """Return weekday vs. weekend sales totals, transaction counts, and sales shares (%)."""
         result = self._sum_groups(self._DAY_TYPES, "day_type")
-        total = result["total_sales"].sum(min_count=1)
+        total = result["total_sales"].sum(min_count=len(result))
         shares = []
         for value in result["total_sales"]:
-            if pd.isna(value):
+            if pd.isna(value) or pd.isna(total):
                 shares.append(float("nan"))
-            elif pd.isna(total) or int(total) == 0:
+            elif int(total) == 0:
                 shares.append(0.0)
             else:
                 shares.append(round(int(value) / int(total) * 100, 2))
