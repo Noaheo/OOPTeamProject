@@ -77,6 +77,32 @@ class MapAnalyzerTests(unittest.TestCase):
         with self.assertRaises(pd.errors.MergeError):
             MapAnalyzer(self.records, locations).prepare_map_data()
 
+    def test_demographic_share_uses_district_totals_and_keeps_unavailable_shares(self):
+        self.records["남성_매출_금액"] = pd.Series([30, 0, 10, 5], dtype="Int64")
+        self.records["여성_매출_금액"] = pd.Series([10, 0, 50, pd.NA], dtype="Int64")
+
+        groups = [("Male", "남성"), ("Female", "여성")]
+        data = MapAnalyzer(self.records, self.locations).prepare_demographic_map_data(groups, "Male")
+        by_code = data.set_index("district_code")
+        self.assertEqual(by_code.loc["A", "sales_share"], 40)
+        self.assertEqual(by_code.loc["A", "group_sales"], 40)
+        self.assertEqual(by_code.loc["B", "sales_share"], 0)
+        self.assertTrue(pd.isna(by_code.loc["C", "sales_share"]))
+
+    def test_comparison_keeps_selected_district_without_sales(self):
+        districts = pd.DataFrame({
+            "district_code": ["A", "B"],
+            "district_name": ["New name", "Same name"],
+            "total_sales": pd.Series([300, pd.NA], dtype="Int64"),
+        })
+        data = MapAnalyzer(self.records[self.records["상권_코드"].eq("A")], self.locations)
+        prepared = data.prepare_map_data(districts).set_index("district_code")
+
+        self.assertEqual(prepared.index.tolist(), ["A", "B"])
+        self.assertEqual(prepared.loc["B", "latitude"], 37.60)
+        self.assertTrue(pd.isna(prepared.loc["B", "total_sales"]))
+        self.assertTrue(pd.isna(prepared.loc["B", "total_transactions"]))
+
     def test_bundled_locations_cover_every_archived_district(self):
         project = Path(__file__).resolve().parents[1]
         codes = set()

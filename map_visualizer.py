@@ -22,8 +22,7 @@ class MapVisualizer:
         self._boundaries_path = (Path(boundaries_path) if boundaries_path is not None
                                  else Path(__file__).parent / "assets" / "district_boundaries.geojson")
 
-    def plot_map(self, data):
-        """Plot prepared district totals without changing the table."""
+    def _figure(self):
         figure = go.Figure()
         figure.update_layout(
             title="Seoul Commercial District Sales",
@@ -38,22 +37,23 @@ class MapVisualizer:
             hoverlabel=dict(bgcolor="white", font=dict(color="#1F2937", size=12)),
         )
         self._add_basemap_menu(figure)
+        return figure
+
+    def plot_map(self, data, reference_code=None):
+        """Plot district sales, optionally highlighting a comparison baseline."""
+        figure = self._figure()
         if data.empty:
             figure.add_annotation(text="No sales data for this selection", showarrow=False,
                                   x=0.5, y=0.5, xref="paper", yref="paper", bgcolor="white")
             return figure
 
-        latitude = pd.to_numeric(data["latitude"], errors="coerce")
-        longitude = pd.to_numeric(data["longitude"], errors="coerce")
-        valid = latitude.between(-90, 90) & longitude.between(-180, 180)
-        located = data.loc[valid].copy()
-        located["latitude"] = latitude.loc[valid]
-        located["longitude"] = longitude.loc[valid]
-        located["district_type"] = located["district_type"].fillna("Other")
+        located = self._located_districts(data, figure)
         positive = located.loc[located["total_sales"].gt(0).fillna(False)]
 
         # Every district type uses the same scale so bubble areas remain comparable.
         sizeref = 2 * float(positive["total_sales"].max()) / 44 ** 2 if not positive.empty else 1
+        reference = located.loc[located["district_code"].eq(reference_code)]
+        positive = positive.drop(index=reference.index, errors="ignore")
         types = list(self._COLORS) + sorted(set(positive["district_type"]) - self._COLORS.keys())
         for district_type in types:
             rows = positive.loc[positive["district_type"] == district_type]
@@ -64,23 +64,21 @@ class MapVisualizer:
 
         zero = located.loc[located["total_sales"].eq(0).fillna(False)]
         unavailable = located.loc[located["total_sales"].isna()]
-        if not zero.empty:
-            figure.add_trace(self._trace(zero, "Zero sales", "#64748B"))
-        if not unavailable.empty:
-            figure.add_trace(self._trace(unavailable, "Sales unavailable", "#CBD5E1"))
+        for subset, label, color in ((zero, "Zero sales", "#64748B"),
+                                     (unavailable, "Sales unavailable", "#CBD5E1")):
+            others = subset.drop(index=reference.index, errors="ignore")
+            if not others.empty:
+                figure.add_trace(self._trace(others, label, color))
+        if not reference.empty:
+            reference_has_sales = reference["total_sales"].gt(0).fillna(False).any()
+            trace = self._trace(reference, "Reference district", "#9333EA",
+                                sizeref if reference_has_sales else None)
+            if not reference_has_sales:
+                trace.marker.size = 12
+            figure.add_trace(trace)
+            figure.update_layout(legend_title_text="Map legend")
 
-        missing_locations = len(data) - len(located)
-        note = f"{len(located):,} of {len(data):,} districts located · Bubble area shows sales"
-        if missing_locations:
-            note += f"<br>{missing_locations:,} omitted: no valid location"
-        if not unavailable.empty:
-            note += f"<br>{len(unavailable):,} with unavailable sales shown in light gray"
-        figure.add_annotation(
-            text=note, showarrow=False, x=0.015, y=0.02, xref="paper", yref="paper",
-            xanchor="left", yanchor="bottom", align="left", borderpad=7,
-            bgcolor="rgba(255,255,255,0.94)", bordercolor="#E2E8F0", borderwidth=1,
-            font=dict(size=11, color="#92400E" if missing_locations else "#475569"),
-        )
+        self._add_coverage_note(figure, data, located, "Bubble area shows sales")
         message = None
         if located.empty:
             message = "No mapped districts for this selection"
@@ -89,12 +87,72 @@ class MapVisualizer:
         elif len(zero) == len(located):
             message = "All located districts have zero recorded sales"
         if message:
-            figure.add_annotation(text=message, showarrow=False, x=0.5, y=0.5,
-                                  xref="paper", yref="paper", bgcolor="white", borderpad=8)
+            self._add_message(figure, message)
+        return figure
+
+    def plot_demographic_map(self, data, group):
+        """Colour district markers by the selected customer group's sales share."""
+        figure = self._figure()
+        located = self._located_districts(data, figure)
+        known = located.loc[located["sales_share"].notna()]
+        unknown = located.loc[located["sales_share"].isna()]
+        figure.update_layout(legend_title_text=None)
+        if not unknown.empty:
+            trace = self._trace(unknown, "Share unavailable", "#94A3B8", demographic_group=group)
+            trace.marker.size = 9
+            figure.add_trace(trace)
+        if not known.empty:
+            trace = self._trace(known, group, "#3B5BDB", demographic_group=group)
+            trace.showlegend = False
+            trace.marker = dict(
+                size=11, color=known["sales_share"].astype(float).tolist(), opacity=0.85,
+                colorscale=["#b9d6f5", "#4e90db", "#102a72"], cmin=0, cmax=100, showscale=True,
+                colorbar=dict(title="Sales share", ticksuffix="%", len=0.55, thickness=12),
+            )
+            figure.add_trace(trace)
+
+        self._add_coverage_note(figure, data, located, "Colour shows the sales share")
+        if located.empty:
+            self._add_message(figure, "No mapped districts for this selection")
+        elif known.empty:
+            self._add_message(figure, "No sales shares available for this group")
         return figure
 
     @staticmethod
-    def _trace(rows, label, color, sizeref=None):
+    def _located_districts(data, figure):
+        latitude = pd.to_numeric(data["latitude"], errors="coerce")
+        longitude = pd.to_numeric(data["longitude"], errors="coerce")
+        valid = latitude.between(-90, 90) & longitude.between(-180, 180)
+        located = data.loc[valid].copy().reset_index(drop=True)
+        located["latitude"] = latitude.loc[valid].tolist()
+        located["longitude"] = longitude.loc[valid].tolist()
+        located["district_type"] = located["district_type"].fillna("Other")
+        if len(located) == 1:
+            district = located.iloc[0]
+            figure.update_layout(map_center=dict(lat=district.latitude, lon=district.longitude),
+                                 map_zoom=12.8, map_uirevision=f"district-{district.district_code}")
+        return located
+
+    @staticmethod
+    def _add_coverage_note(figure, data, located, measure):
+        missing_locations = len(data) - len(located)
+        note = f"{len(located):,} of {len(data):,} districts located · {measure}"
+        if missing_locations:
+            note += f"<br>{missing_locations:,} omitted: no valid location"
+        figure.add_annotation(
+            text=note, showarrow=False, x=0.015, y=0.02, xref="paper", yref="paper",
+            xanchor="left", yanchor="bottom", align="left", borderpad=7,
+            bgcolor="rgba(255,255,255,0.94)", bordercolor="#E2E8F0", borderwidth=1,
+            font=dict(size=11, color="#92400E" if missing_locations else "#475569"),
+        )
+
+    @staticmethod
+    def _add_message(figure, text):
+        figure.add_annotation(text=text, showarrow=False, x=0.5, y=0.5,
+                              xref="paper", yref="paper", bgcolor="white", borderpad=8)
+
+    @staticmethod
+    def _trace(rows, label, color, sizeref=None, demographic_group=None):
         names, details = [], []
         for row in rows.itertuples(index=False):
             original = str(row.district_name) if pd.notna(row.district_name) else str(row.district_code)
@@ -103,6 +161,17 @@ class MapVisualizer:
             transactions = "N/A" if pd.isna(row.total_transactions) else f"{int(row.total_transactions):,}"
             details.append([str(row.district_code), escape(original), escape(str(row.district_type)),
                             sales, transactions])
+            if demographic_group:
+                group_sales = "N/A" if pd.isna(row.group_sales) else f"{int(row.group_sales):,} KRW"
+                share = "N/A" if pd.isna(row.sales_share) else f"{row.sales_share:.2f}%"
+                details[-1] += [group_sales, share]
+        hover = ("<b>%{text}</b><br>%{customdata[1]}<br>Code: %{customdata[0]}"
+                 "<br>Type: %{customdata[2]}")
+        if demographic_group:
+            hover += (f"<br>{escape(demographic_group)} sales: %{{customdata[5]}}"
+                      "<br>Sales share: %{customdata[6]}")
+        else:
+            hover += "<br>Sales: %{customdata[3]} KRW<br>Transactions: %{customdata[4]}"
         return go.Scattermap(
             lat=rows["latitude"].tolist(), lon=rows["longitude"].tolist(),
             ids=rows["district_code"].astype(str).tolist(), text=names, customdata=details,
@@ -110,9 +179,7 @@ class MapVisualizer:
             marker=dict(color=color, opacity=0.82, symbol="circle",
                         size=[int(v) for v in rows["total_sales"]] if sizeref is not None else 5,
                         sizemode="area", sizeref=sizeref, sizemin=4),
-            hovertemplate=("<b>%{text}</b><br>%{customdata[1]}<br>Code: %{customdata[0]}"
-                           "<br>Type: %{customdata[2]}<br>Sales: %{customdata[3]} KRW"
-                           "<br>Transactions: %{customdata[4]}<extra></extra>"),
+            hovertemplate=hover + "<extra></extra>",
         )
 
     def _add_basemap_menu(self, figure):
@@ -127,7 +194,7 @@ class MapVisualizer:
                  line=dict(width=1), below="traces"),
         ]
         figure.update_layout(updatemenus=[dict(
-            type="dropdown", direction="down", x=0.985, y=0.98,
+            type="dropdown", direction="down", x=0.985, y=0.87,
             xanchor="right", yanchor="top", bgcolor="white", bordercolor="#CBD5E1",
             font=dict(size=11, color="#334155"), pad=dict(l=0, r=0, t=0, b=0),
             buttons=[

@@ -68,6 +68,28 @@ class MapVisualizerTests(unittest.TestCase):
         self.assertNotEqual(traces["Zero sales"].marker.color,
                             traces["Sales unavailable"].marker.color)
 
+    def test_reference_is_highlighted_even_when_its_sales_are_unavailable(self):
+        figure = self.visualizer.plot_map(self.data, reference_code="004")
+        reference = next(trace for trace in figure.data if trace.name == "Reference district")
+
+        self.assertEqual(list(reference.ids), ["004"])
+        self.assertEqual(reference.customdata[0][3], "N/A")
+        self.assertEqual(sum("004" in trace.ids for trace in figure.data), 1)
+
+    def test_demographic_map_uses_percentages_and_preserves_unknowns(self):
+        data = self.data.assign(
+            sales_share=pd.Series([25, 70, 0, pd.NA, 30], dtype="Float64"),
+            group_sales=pd.Series([250000, 2800000, 0, pd.NA, 900000], dtype="Int64"),
+        )
+        figure = self.visualizer.plot_demographic_map(data, "60+")
+        unknown, known = figure.data
+
+        self.assertEqual(list(unknown.ids), ["004"])
+        self.assertEqual(list(known.marker.color), [25, 70, 0])
+        self.assertEqual(known.marker.cmax, 100)
+        self.assertEqual(list(known.customdata[0][5:]), ["250,000 KRW", "25.00%"])
+        self.assertEqual(list(unknown.customdata[0][5:]), ["N/A", "N/A"])
+
     def test_invalid_coordinates_are_omitted_and_reported(self):
         self.data.loc[0, "latitude"] = float("inf")
         self.data.loc[2, "latitude"] = 91

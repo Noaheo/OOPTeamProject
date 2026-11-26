@@ -4,8 +4,8 @@ import pandas as pd
 class DemographicAnalyzer:
     """Demographic summaries of cleaned, already filtered sales records."""
 
-    _GENDERS = [("Male", "남성"), ("Female", "여성")]
-    _AGE_GROUPS = [
+    GENDERS = [("Male", "남성"), ("Female", "여성")]
+    AGE_GROUPS = [
         ("10s", "연령대_10"),
         ("20s", "연령대_20"),
         ("30s", "연령대_30"),
@@ -60,11 +60,11 @@ class DemographicAnalyzer:
         Missing values are excluded from sums. An entirely missing metric stays
         missing; an empty selection returns zero totals for both genders.
         """
-        return self._sum_groups(self._GENDERS, "gender")
+        return self._sum_groups(self.GENDERS, "gender")
 
     def age_group_sales(self):
         """Return age-group totals (10s to 60+) in KRW and transaction counts."""
-        return self._sum_groups(self._AGE_GROUPS, "age_group")
+        return self._sum_groups(self.AGE_GROUPS, "age_group")
 
     def gender_share(self):
         """Return gender totals along with percentage shares."""

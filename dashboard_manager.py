@@ -240,26 +240,31 @@ class DashboardManager:
         self._render_header()
         filters = self.render_filters()
         self._filter_state = filters
-        self.render_overview(filters)
 
         tab_sales, tab_demo, tab_comp, tab_map = st.tabs([
             "Sales Analysis",
             "Demographic Analysis",
             "District Comparison",
             "District Map",
-        ])
+        ], key="analysis_tab", on_change="rerun")
         with tab_sales:
+            if tab_sales.open:
+                self._render_sales_map(filters)
+                self.render_overview(filters)
             self._section("sales")
             self.render_sales_analysis(filters)
         with tab_demo:
+            self._render_demographic_map(filters, tab_demo.open)
+            if tab_demo.open:
+                self.render_overview(filters)
             self._section("demographic")
             self.render_demographics(filters)
         with tab_comp:
-            self._section("comparison")
-            self.render_comparison(filters)
+            self.render_comparison(filters, show_map=tab_comp.open)
         with tab_map:
-            self._section("map")
-            self.render_map(filters)
+            if tab_map.open:
+                self.render_map(filters)
+                self.render_overview(filters)
 
     # ------------------------------------------------------------------
     # Filter bar at the top of every page
@@ -507,12 +512,16 @@ class DashboardManager:
     # ------------------------------------------------------------------
     # District Comparison — rankings (Top/Bottom 5/10) & multi-district comparison
     # ------------------------------------------------------------------
-    def render_comparison(self, filters):
+    def render_comparison(self, filters, show_map=True):
+        map_slot = st.container()
+        if show_map:
+            self.render_overview(filters)
+        self._section("comparison")
         ranking_data = self._ranking_data(filters)
-        if self._ready("ranking"):
-            self._render_ranking(ranking_data)
-        if self._ready("district_compare"):
-            self._render_multi_district(filters, ranking_data)
+        ranking = self._render_ranking(ranking_data) if self._ready("ranking") else None
+        comparison = self._render_multi_district(filters, ranking_data) if self._ready("district_compare") else None
+        with map_slot:
+            self._render_comparison_map(ranking_data, ranking, comparison, show_map)
 
     def _render_ranking(self, ranking_data):
         panel = PANELS["ranking"]
@@ -539,6 +548,7 @@ class DashboardManager:
                     "Estimated Sales (KRW)": [self._format_int(v) for v in localized["total_sales"]],
                 })
                 st.dataframe(table, width="stretch", hide_index=True)
+            return result
 
     def _render_multi_district(self, filters, ranking_data):
         panel = PANELS["district_compare"]
@@ -612,13 +622,70 @@ class DashboardManager:
                 "Role": ["Baseline" if bool(r) else "Compared" for r in localized["is_reference"]],
             })
             st.dataframe(table, width="stretch", hide_index=True)
+            return comp_result
 
     # ------------------------------------------------------------------
-    # District Map — OCP plugin slot for teammate's MapVisualizer / MapAnalyzer
+    # Geographic context for each tab
     # ------------------------------------------------------------------
+    def _render_sales_map(self, filters):
+        if self._ready("district_map"):
+            with self._card():
+                st.subheader("Sales by district")
+                self._draw_sales_map(self._period_data(filters), "sales_map")
+
+    def _render_demographic_map(self, filters, active):
+        if not (
+            self._has("map_analyzer", "prepare_demographic_map_data")
+            and self._has("map_visualizer", "plot_demographic_map")
+            and self._has("demographic_analyzer", "AGE_GROUPS")
+            and self._has("demographic_analyzer", "GENDERS")
+        ):
+            return
+        with self._card():
+            st.subheader("Customer sales share by district")
+            age_groups = self.demographic_analyzer.AGE_GROUPS
+            genders = self.demographic_analyzer.GENDERS
+            group_options = {
+                f"{category} · {group}": (groups, group)
+                for category, groups in (("Age", age_groups), ("Gender", genders))
+                for group, _ in groups
+            }
+            selection = st.selectbox("Customer group", list(group_options),
+                                     index=len(age_groups) - 1, key="map_demographic_group")
+            if active:
+                groups, group = group_options[selection]
+                analyzer = self._safe_call(self.map_analyzer, self._period_data(filters), label="MapAnalyzer()")
+                if analyzer is not None:
+                    prepared = self._safe_call(analyzer.prepare_demographic_map_data, groups, group,
+                                               label="MapAnalyzer.prepare_demographic_map_data()")
+                    if prepared is not None:
+                        figure = self._safe_call(self.map_visualizer.plot_demographic_map, prepared, group,
+                                                 label="MapVisualizer.plot_demographic_map()")
+                        self._display_map(figure, "demographic_map")
+
+    def _render_comparison_map(self, data, ranking, comparison, active):
+        if not (self._ready("district_map") and self._has("map_analyzer", "prepare_map_data")):
+            return
+        views = {}
+        if self._ready("ranking"):
+            views["Ranking"] = ranking
+        if self._ready("district_compare"):
+            views["Selected districts"] = comparison
+        if not views:
+            return
+        with self._card():
+            st.subheader("Districts on the map")
+            choice = st.radio("Map data", list(views), horizontal=True, key="comparison_map_data")
+            if active:
+                districts = views[choice]
+                if districts is None:
+                    st.info("Choose districts in the comparison controls below." if choice == "Selected districts"
+                            else "No ranking available for this selection.")
+                else:
+                    self._draw_sales_map(data, "comparison_map", districts)
+
     def render_map(self, filters):
         panel = PANELS["district_map"]
-        data = self._ranking_data(filters)
         with self._card():
             self._card_header(panel)
             if not self._ready("district_map"):
@@ -633,26 +700,36 @@ class DashboardManager:
                 )
                 return
 
-            prepared = (
-                self._analyze(panel, data)
-                if self._has("map_analyzer", "prepare_map_data")
-                else data
-            )
-            if prepared is None:
-                return
+            self._draw_sales_map(self._ranking_data(filters), "district_map")
 
-            figure = self._safe_call(
-                self.map_visualizer.plot_map,
-                prepared,
-                label="MapVisualizer.plot_map()",
+    def _draw_sales_map(self, data, key, districts=None):
+        prepared = data
+        if self._has("map_analyzer", "prepare_map_data"):
+            args = (districts,) if districts is not None else ()
+            prepared = self._analyze(PANELS["district_map"], data, *args)
+        if prepared is None:
+            return
+        args = ()
+        if districts is not None and "is_reference" in districts:
+            references = districts.loc[districts["is_reference"], "district_code"]
+            if not references.empty:
+                args = (references.iloc[0],)
+        figure = self._safe_call(self.map_visualizer.plot_map, prepared, *args, label="MapVisualizer.plot_map()")
+        self._display_map(figure, key)
+
+    def _display_map(self, figure, key):
+        if figure is not None:
+            figure.update_layout(height=420)
+            st.plotly_chart(self._fit(figure), width="stretch", key=key, config={
+                "displayModeBar": True,
+                "displaylogo": False,
+                "modeBarButtons": [["zoomInMap", "zoomOutMap", "resetViewMap"]],
+                "scrollZoom": False,
+            })
+            st.caption(
+                "Street map requires internet. Offline outlines are bundled. "
+                "Geographic data: Seoul Metropolitan Government / Seoul Credit Guarantee Foundation."
             )
-            if figure is not None:
-                st.plotly_chart(self._fit(figure), width="stretch", config={"displayModeBar": False, "scrollZoom": True})
-                st.caption(
-                    "Circle area shows estimated sales; colours show district type. Hover for details. "
-                    "Street maps need internet; choose Offline outlines to use the bundled boundaries. "
-                    "Geographic data: Seoul Metropolitan Government / Seoul Credit Guarantee Foundation."
-                )
 
     # ------------------------------------------------------------------
     # Panel & layout helpers

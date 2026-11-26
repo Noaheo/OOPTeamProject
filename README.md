@@ -55,10 +55,12 @@ Year-growth totals use only quarters with known sales in both years; `matched_qu
 
 ## Dashboard Features
 - **Common Filters & Overview**: Industry, District, Year, and Quarter selectors with KPI cards for Total Sales, Transactions, YoY Growth (shown automatically when the previous year has comparable quarters), and Top Age Group.
-- **Sales Analysis Tab**: Quarterly sales trend (`All years` scope), Year-over-Year grouped comparison chart & quarterly table, Weekday vs. Weekend split, Day-of-Week bar chart, and Time-of-Day bar chart.
-- **Demographic Analysis Tab**: Gender sales bar chart, Gender share donut chart, Age-group sales bar chart (highlighting the leading group), and formatted breakdown tables with transaction counts and shares (%).
-- **District Comparison Tab**: TOP/BOTTOM 5 or 10 district rankings (`All districts` scope) with table, plus Multi-District Comparison (select 2+ districts and a reference baseline district) showing absolute KRW gaps and percentage gaps.
-- **District Map Tab**: Interactive Seoul sales bubbles for all districts in the selected industry, year and quarter. The District filter is intentionally excluded, as shown by the `All districts` badge. Drag to pan, scroll to zoom, and hover for district names, codes, sales in KRW and transaction counts. The `Street map` view uses CARTO tiles and needs internet; `Offline outlines` uses bundled geometry without external map requests. No Mapbox token is needed.
+- **Sales Analysis Tab** shows sales by district on the map using the common filters. The charts below cover quarterly trends, year-over-year comparisons, weekdays and weekends, days of the week, and time of day.
+- **Demographic Analysis Tab** colours the map by the selected age or gender group's share of recorded sales in each district. The charts and tables below cover sales, transactions, and shares by gender and age group.
+- **District Comparison Tab** maps the current TOP/BOTTOM ranking or the selected comparison districts. The reference district is highlighted in purple. The charts and tables below show rankings and the differences from the reference district.
+- **District Map Tab** gives a city-wide sales overview for the selected industry, year, and quarter. The `All districts` badge indicates its geographic scope.
+
+Each tab opens with its map below the common filters. Drag to pan, use the map's zoom controls, and hover over a marker for details. `Street map` uses online CARTO tiles. `Offline outlines` uses the bundled geography.
 
 ### Map Interface
 
