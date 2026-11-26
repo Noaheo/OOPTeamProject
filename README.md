@@ -32,6 +32,7 @@ python -m unittest discover -s tests -v
 ## Data Used
 - **Primary Dataset**: Seoul Open Data — Commercial District Sales Estimates (`서울시 상권분석서비스(추정매출-상권)`), covering 2023–2025 (`261,157` rows, `1,587` commercial districts, `63` service industries, `55` source columns).
 - **Columns Processed**: `7` identifier columns (`기준_년분기_코드`, `상권_구분_코드*`, `상권_코드*`, `서비스_업종_코드*`) and `48` sales amount/transaction count columns (total, weekday/weekend, Mon–Sun, 6 time slots, gender, and age groups 10s–60+), plus derived `year` and `quarter` integer columns.
+- **Map Reference**: Bundled official Seoul commercial-area geometry covers all `1,587` archived district codes. Locations and simplified outlines were prepared in WGS84; no API key or coordinate lookup is needed at runtime. See [map data sources and preparation](assets/README.md). These are spatial reference outlines, not quarter-specific historical boundaries.
 
 ## Class Design and Object Interactions
 The application separates data preparation, domain analysis, Plotly visualization, and UI coordination across dedicated classes:
@@ -44,6 +45,8 @@ The application separates data preparation, domain analysis, Plotly visualizatio
 6. **`DistrictComparator`** (`district_comparator.py`): Computes city-wide rankings via `rank_districts(n, order)` and multi-district absolute/percentage gaps against a baseline district via `compare_districts(ids, reference_id)`.
 7. **`DistrictVisualizer`** (`district_visualizer.py`): Renders ranking and comparison charts via `plot_ranking()` and `plot_comparison()`.
 8. **`DashboardManager`** (`dashboard_manager.py`, launched by `app.py`): Coordinates all injected modules via a `PANELS` registry (Open-Closed Principle), builds the top filter bar, Overview KPIs, and four tabs (`Sales Analysis`, `Demographic Analysis`, `District Comparison`, `District Map`), and handles empty selections and module errors gracefully.
+9. **`MapAnalyzer`** (`map_analyzer.py`): Copies the filtered records, sums sales and transaction counts by district code, selects the latest district name, and joins bundled locations. `prepare_map_data()` returns `district_code`, `district_name`, `district_type`, `total_sales`, `total_transactions`, `latitude`, and `longitude`. Unknown totals and unmapped codes are retained.
+10. **`MapVisualizer`** (`map_visualizer.py`): `plot_map(data)` returns a Plotly `Figure` from that prepared table. Circle area represents sales on one shared scale; colours distinguish district types. Zero and unknown sales remain separate, and omitted locations are reported.
 
 Year-growth totals use only quarters with known sales in both years; `matched_quarters` lists those quarters. A share is unavailable when any category needed for its denominator is unknown. Charts display missing transaction counts as `N/A` and retain actual zero counts.
 
@@ -52,14 +55,22 @@ Year-growth totals use only quarters with known sales in both years; `matched_qu
 
 ## Dashboard Features
 - **Common Filters & Overview**: Industry, District, Year, and Quarter selectors with KPI cards for Total Sales, Transactions, YoY Growth (shown automatically when the previous year has comparable quarters), and Top Age Group.
-- **Sales Analysis Tab**: Quarterly sales trend (`All years` scope), Year-over-Year grouped comparison chart & quarterly table, Weekday vs. Weekend split, Day-of-Week bar chart, and Time-of-Day bar chart.
-- **Demographic Analysis Tab**: Gender sales bar chart, Gender share donut chart, Age-group sales bar chart (highlighting the leading group), and formatted breakdown tables with transaction counts and shares (%).
-- **District Comparison Tab**: TOP/BOTTOM 5 or 10 district rankings (`All districts` scope) with table, plus Multi-District Comparison (select 2+ districts and a reference baseline district) showing absolute KRW gaps and percentage gaps.
-- **District Map Tab (Teammate Extension Slot)**: Built-in OCP plugin slot in `app.py` and `DashboardManager.render_map()`. To activate the map, add `map_visualizer.py` defining:
-  ```python
-  class MapVisualizer:
-      def plot_map(self, data):
-          # Receives the all-district filtered DataFrame for the selected industry & period.
-          # Optionally also add map_analyzer.py -> MapAnalyzer(data).prepare_map_data().
-          return plotly_figure
-  ```
+- **Sales Analysis Tab** shows sales by district on the map using the common filters. The charts below cover quarterly trends, year-over-year comparisons, weekdays and weekends, days of the week, and time of day.
+- **Demographic Analysis Tab** colours the map by the selected age or gender group's share of recorded sales in each district. The charts and tables below cover sales, transactions, and shares by gender and age group.
+- **District Comparison Tab** maps the current TOP/BOTTOM ranking or the selected comparison districts. The reference district is highlighted in purple. The charts and tables below show rankings and the differences from the reference district.
+- **District Map Tab** gives a city-wide sales overview for the selected industry, year, and quarter. The `All districts` badge indicates its geographic scope.
+
+Each tab opens with its map below the common filters. Drag to pan, use the map's zoom controls, and hover over a marker for details. `Street map` uses online CARTO tiles. `Offline outlines` uses the bundled geography.
+
+### Map Interface
+
+```python
+from map_analyzer import MapAnalyzer
+from map_visualizer import MapVisualizer
+
+records = manager.filter_data(industry="CS100001", year=2025, quarter=1)
+map_data = MapAnalyzer(records).prepare_map_data()
+figure = MapVisualizer().plot_map(map_data)
+```
+
+`app.py` discovers both map classes automatically. The source sales DataFrame and the prepared map table are preserved. Empty selections return a labeled figure; missing coordinates are reported instead of placing points at guessed locations.
