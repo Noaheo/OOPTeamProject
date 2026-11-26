@@ -647,7 +647,12 @@ class DashboardManager:
                 label="MapVisualizer.plot_map()",
             )
             if figure is not None:
-                st.plotly_chart(self._fit(figure), width="stretch", config={"displayModeBar": False})
+                st.plotly_chart(self._fit(figure), width="stretch", config={"displayModeBar": False, "scrollZoom": True})
+                st.caption(
+                    "Circle area shows estimated sales; colours show district type. Hover for details. "
+                    "Street maps need internet; choose Offline outlines to use the bundled boundaries. "
+                    "Geographic data: Seoul Metropolitan Government / Seoul Credit Guarantee Foundation."
+                )
 
     # ------------------------------------------------------------------
     # Panel & layout helpers
