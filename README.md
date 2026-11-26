@@ -20,6 +20,8 @@ On the first launch, `app.py` automatically extracts `data(23~25).zip` into `dat
 python -m streamlit run app.py
 ```
 
+On Windows 10/11 x64, you can instead download `run_local.bat` and double-click it. No preinstalled Python or Git is needed. The launcher checks the current `dev` commit, downloads the project and a private Python runtime, installs dependencies, and opens the local dashboard. Internet is required for the first setup and new versions. Each version has a separate cache; if GitHub is unavailable, the last fully prepared version can be used. Keep the launcher window open while using the dashboard; press Ctrl+C to stop it.
+
 ### 3. Run Unit & Integration Tests
 From the repository root:
 
@@ -42,6 +44,8 @@ The application separates data preparation, domain analysis, Plotly visualizatio
 6. **`DistrictComparator`** (`district_comparator.py`): Computes city-wide rankings via `rank_districts(n, order)` and multi-district absolute/percentage gaps against a baseline district via `compare_districts(ids, reference_id)`.
 7. **`DistrictVisualizer`** (`district_visualizer.py`): Renders ranking and comparison charts via `plot_ranking()` and `plot_comparison()`.
 8. **`DashboardManager`** (`dashboard_manager.py`, launched by `app.py`): Coordinates all injected modules via a `PANELS` registry (Open-Closed Principle), builds the top filter bar, Overview KPIs, and four tabs (`Sales Analysis`, `Demographic Analysis`, `District Comparison`, `District Map`), and handles empty selections and module errors gracefully.
+
+Year-growth totals use only quarters with known sales in both years; `matched_quarters` lists those quarters. A share is unavailable when any category needed for its denominator is unknown. Charts display missing transaction counts as `N/A` and retain actual zero counts.
 
 ### Object Flow
 `app.py` (loads/caches `SalesDataManager` and imports team classes) → `DashboardManager.render_filters()` → `SalesDataManager.filter_data()` → Domain Analyzers/Comparator (`SalesAnalyzer`, `DemographicAnalyzer`, `DistrictComparator`) → Domain Visualizers (`SalesVisualizer`, `DemographicVisualizer`, `DistrictVisualizer`) → `DashboardManager` Streamlit tabs, KPIs, charts, and tables.

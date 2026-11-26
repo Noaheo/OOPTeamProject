@@ -170,6 +170,87 @@ class SalesAnalyzerTests(unittest.TestCase):
         self.assertAlmostEqual(result["sales_share"].iloc[0], 70.0, places=2)
         self.assertAlmostEqual(result["sales_share"].iloc[1], 30.0, places=2)
 
+    def test_year_growth_summary_uses_only_complete_quarter_pairs(self):
+        data = pd.DataFrame({
+            "year": [2024, 2024, 2024, 2025, 2025, 2025],
+            "quarter": [1, 2, 3, 1, 2, 3],
+            "당월_매출_금액": pd.Series([100, pd.NA, 300, 120, 200, pd.NA], dtype="Int64"),
+        })
+        original = data.copy(deep=True)
+        analyzer = SalesAnalyzer(data)
+
+        self.assertEqual(analyzer.year_growth_summary(2024, 2025), {
+            "year_a": 2024,
+            "year_b": 2025,
+            "matched_quarters": [1],
+            "sales_a": 100,
+            "sales_b": 120,
+            "difference": 20,
+            "growth_rate": 20.0,
+        })
+        self.assertEqual(analyzer.year_comparison(2024, 2025)["quarter"].tolist(), [1, 2, 3])
+        assert_frame_equal(data, original)
+
+    def test_year_growth_summary_without_complete_pairs(self):
+        for sales in ([100, pd.NA, pd.NA, 200], [pd.NA] * 4):
+            with self.subTest(sales=sales):
+                data = pd.DataFrame({
+                    "year": [2024, 2024, 2025, 2025],
+                    "quarter": [1, 2, 1, 2],
+                    "당월_매출_금액": pd.Series(sales, dtype="Int64"),
+                })
+
+                self.assertEqual(SalesAnalyzer(data).year_growth_summary(2024, 2025), {
+                    "year_a": 2024,
+                    "year_b": 2025,
+                    "matched_quarters": [],
+                    "sales_a": None,
+                    "sales_b": None,
+                    "difference": None,
+                    "growth_rate": None,
+                })
+
+    def test_year_growth_summary_keeps_complete_zero_baseline(self):
+        data = pd.DataFrame({
+            "year": [2024, 2024, 2025, 2025],
+            "quarter": [1, 2, 1, 2],
+            "당월_매출_금액": pd.Series([0, pd.NA, 100, 200], dtype="Int64"),
+        })
+
+        self.assertEqual(SalesAnalyzer(data).year_growth_summary(2024, 2025), {
+            "year_a": 2024,
+            "year_b": 2025,
+            "matched_quarters": [1],
+            "sales_a": 0,
+            "sales_b": 100,
+            "difference": 100,
+            "growth_rate": None,
+        })
+
+    def test_weekday_weekend_shares_require_both_category_totals(self):
+        for weekday, weekend in ((700, pd.NA), (pd.NA, 300), (pd.NA, pd.NA)):
+            with self.subTest(weekday=weekday, weekend=weekend):
+                data = self.sales_data.iloc[:1].copy()
+                data["주중_매출_금액"] = pd.Series([weekday], dtype="Int64")
+                data["주말_매출_금액"] = pd.Series([weekend], dtype="Int64")
+                original = data.copy(deep=True)
+
+                result = SalesAnalyzer(data).weekday_weekend()
+
+                self.assertTrue(result["sales_share"].isna().all())
+                self.assertEqual(result["total_sales"].notna().tolist(),
+                                 [pd.notna(weekday), pd.notna(weekend)])
+                assert_frame_equal(data, original)
+
+    def test_weekday_weekend_zero_totals_keep_zero_shares(self):
+        data = self.sales_data.copy()
+        data[["주중_매출_금액", "주말_매출_금액"]] = 0
+
+        result = SalesAnalyzer(data).weekday_weekend()
+
+        self.assertEqual(result["total_sales"].tolist(), [0, 0])
+        self.assertEqual(result["sales_share"].tolist(), [0.0, 0.0])
+
     def test_daily_sales_and_time_slot_sales(self):
         analyzer = SalesAnalyzer(self.sales_data)
         daily = analyzer.daily_sales()

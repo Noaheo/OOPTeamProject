@@ -116,6 +116,53 @@ class SalesVisualizerTests(unittest.TestCase):
         self.assertEqual(list(fig_slots.data[0].x), ["00:00-06:00", "11:00-14:00"])
         fig_slots.to_json()
 
+    def test_transaction_tooltips_preserve_missing_zero_and_large_counts(self):
+        cases = (
+            ("plot_day_types", "day_type", ["Weekday", "Weekend"]),
+            ("plot_days", "day", ["Mon", "Sat"]),
+            ("plot_time_slots", "time_slot", ["00:00-06:00", "11:00-14:00"]),
+        )
+        vis = SalesVisualizer()
+        for method, column, labels in cases:
+            for transactions, sales, expected in (
+                ([pd.NA, 0], [100, 200], ["N/A", "0"]),
+                ([1234, 0], [100, pd.NA], ["1,234", "0"]),
+            ):
+                with self.subTest(method=method, expected=expected):
+                    data = pd.DataFrame({
+                        column: labels,
+                        "total_sales": pd.Series(sales, dtype="Int64"),
+                        "total_transactions": pd.Series(transactions, dtype="Int64"),
+                    })
+                    original = data.copy(deep=True)
+                    figure = getattr(vis, method)(data)
+                    trace = json.loads(figure.to_json())["data"][0]
+                    tooltip_counts = ([row[0] for row in trace["customdata"]]
+                                      if method == "plot_day_types" else trace["customdata"])
+
+                    self.assertEqual(tooltip_counts, expected)
+                    self.assertEqual(trace["y"], [None if pd.isna(value) else value for value in sales])
+                    placeholder = "%{customdata[0]}" if method == "plot_day_types" else "%{customdata}"
+                    self.assertIn(f"Transactions: {placeholder}", trace["hovertemplate"])
+                    assert_frame_equal(data, original)
+
+    def test_transaction_tooltips_when_counts_are_not_supplied(self):
+        vis = SalesVisualizer()
+        for method, column, labels in (
+            ("plot_day_types", "day_type", ["Weekday", "Weekend"]),
+            ("plot_days", "day", ["Mon", "Sat"]),
+            ("plot_time_slots", "time_slot", ["00:00-06:00", "11:00-14:00"]),
+        ):
+            with self.subTest(method=method):
+                data = pd.DataFrame({column: labels, "total_sales": [100, 200]})
+                original = data.copy(deep=True)
+                trace = json.loads(getattr(vis, method)(data).to_json())["data"][0]
+                tooltip_counts = ([row[0] for row in trace["customdata"]]
+                                  if method == "plot_day_types" else trace["customdata"])
+
+                self.assertEqual(tooltip_counts, ["N/A", "N/A"])
+                assert_frame_equal(data, original)
+
 
 if __name__ == "__main__":
     unittest.main()
