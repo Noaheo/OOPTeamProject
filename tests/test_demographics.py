@@ -111,6 +111,37 @@ class DemographicTests(unittest.TestCase):
         self.assertEqual(top["total_transactions"], 6)
         self.assertAlmostEqual(top["sales_share"], round(320 / 850 * 100, 2), places=2)
 
+    def test_shares_require_known_categories_for_each_metric(self):
+        for method, sales_column, transaction_column in (
+            ("gender_share", "남성_매출_금액", "여성_매출_건수"),
+            ("age_group_share", "연령대_10_매출_금액", "연령대_20_매출_건수"),
+        ):
+            for missing_column, missing_share, known_share in (
+                (sales_column, "sales_share", "transaction_share"),
+                (transaction_column, "transaction_share", "sales_share"),
+            ):
+                with self.subTest(method=method, missing_column=missing_column):
+                    data = self.data.copy(deep=True)
+                    data[missing_column] = pd.Series([pd.NA] * len(data), dtype="Int64")
+                    original = data.copy(deep=True)
+                    shares = getattr(DemographicAnalyzer(data), method)()
+
+                    self.assertTrue(shares[missing_share].isna().all())
+                    self.assertFalse(shares[known_share].isna().any())
+                    self.assertAlmostEqual(shares[known_share].sum(), 100.0, places=1)
+                    assert_frame_equal(data, original)
+
+    def test_empty_and_zero_demographic_shares_remain_zero(self):
+        zero_data = self.data.copy(deep=True)
+        zero_data.loc[:, :] = 0
+        for data in (self.data.iloc[:0], zero_data):
+            for method in ("gender_share", "age_group_share"):
+                with self.subTest(method=method, empty=data.empty):
+                    shares = getattr(DemographicAnalyzer(data), method)()
+
+                    self.assertTrue(shares["sales_share"].eq(0).all())
+                    self.assertTrue(shares["transaction_share"].eq(0).all())
+
     def test_top_age_group_returns_none_when_empty_or_zero(self):
         self.assertIsNone(DemographicAnalyzer(self.data.iloc[:0]).top_age_group())
         zero_df = self.data.copy()
@@ -132,9 +163,50 @@ class DemographicTests(unittest.TestCase):
         self.assertEqual(list(share_fig.data[0].labels), ["Male", "Female"])
         share_fig.to_json()
 
-        empty_share_fig = vis.plot_gender_share(analyzer.gender_share().iloc[:0])
-        self.assertEqual(len(empty_share_fig.data), 0)
-        self.assertTrue(len(empty_share_fig.layout.annotations) > 0)
+        for empty_share in (analyzer.gender_share().iloc[:0], pd.DataFrame()):
+            empty_share_fig = vis.plot_gender_share(empty_share)
+            self.assertEqual(len(empty_share_fig.data), 0)
+            self.assertTrue(len(empty_share_fig.layout.annotations) > 0)
+
+    def test_age_tooltips_preserve_missing_zero_and_known_counts(self):
+        age = pd.DataFrame({
+            "age_group": ["10s", "20s", "30s"],
+            "total_sales": pd.Series([100, 200, pd.NA], dtype="Int64"),
+            "total_transactions": pd.Series([pd.NA, 0, 1234], dtype="Int64"),
+            "sales_share": [float("nan"), float("nan"), float("nan")],
+        })
+        original = age.copy(deep=True)
+        trace = json.loads(DemographicVisualizer().plot_age_groups(age).to_json())["data"][0]
+
+        self.assertEqual([row[0] for row in trace["customdata"]], ["N/A", "0", "1,234"])
+        self.assertEqual(trace["y"], [100, 200, None])
+        self.assertIn("Transactions: %{customdata[0]}", trace["hovertemplate"])
+        assert_frame_equal(age, original)
+
+        without_counts = age.drop(columns="total_transactions")
+        original = without_counts.copy(deep=True)
+        trace = json.loads(DemographicVisualizer().plot_age_groups(without_counts).to_json())["data"][0]
+        self.assertEqual([row[0] for row in trace["customdata"]], ["N/A", "N/A", "N/A"])
+        assert_frame_equal(without_counts, original)
+
+    def test_gender_share_chart_requires_known_sales_categories(self):
+        data = self.data.copy(deep=True)
+        data["남성_매출_금액"] = pd.Series([pd.NA] * len(data), dtype="Int64")
+        shares = DemographicAnalyzer(data).gender_share()
+        original = shares.copy(deep=True)
+        figure = DemographicVisualizer().plot_gender_share(shares)
+
+        self.assertEqual(len(figure.data), 0)
+        self.assertTrue(figure.layout.annotations)
+        figure.to_json()
+        assert_frame_equal(shares, original)
+
+        data = self.data.copy(deep=True)
+        data["남성_매출_건수"] = pd.Series([pd.NA] * len(data), dtype="Int64")
+        shares = DemographicAnalyzer(data).gender_share()
+        figure = DemographicVisualizer().plot_gender_share(shares)
+        self.assertEqual(list(figure.data[0].values), [350, 500])
+        figure.to_json()
 
 
 class DemographicIntegrationTests(unittest.TestCase):

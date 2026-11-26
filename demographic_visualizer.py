@@ -51,7 +51,7 @@ class DemographicVisualizer:
             if "sales_share" in data.columns
             else ["N/A"] * len(data)
         )
-        customdata = [[t if t is not None else 0, s] for t, s in zip(tx, shares)]
+        customdata = [["N/A" if t is None else f"{int(t):,}", s] for t, s in zip(tx, shares)]
 
         figure = go.Figure(go.Bar(
             x=data["age_group"].tolist(),
@@ -61,7 +61,7 @@ class DemographicVisualizer:
             name="Sales",
             hovertemplate=(
                 "Age group: %{x}<br>Sales: %{y:,.0f} KRW"
-                "<br>Transactions: %{customdata[0]:,.0f}"
+                "<br>Transactions: %{customdata[0]}"
                 "<br>Share: %{customdata[1]}<extra></extra>"
             ),
         ))
@@ -81,7 +81,7 @@ class DemographicVisualizer:
         valid = data[data["total_sales"].notna()] if not data.empty else data
         total_valid = sum(int(v) for v in valid["total_sales"]) if not valid.empty else 0
 
-        if valid.empty or total_valid <= 0:
+        if valid.empty or total_valid <= 0 or data["total_sales"].isna().any():
             figure.update_layout(
                 title="Gender Sales Share",
                 template=self._template,
