@@ -17,10 +17,34 @@ try {
         throw 'This launcher requires Windows 10 or 11 (64-bit).'
     }
 
-    $revision = '84b1f413631ffba8e45b014a4f7726568b0185fc'
     $cacheBase = Join-Path $env:LOCALAPPDATA 'OOPTeamProjectLocal'
     if ($env:OOP_LOCAL_HOME) { $cacheBase = $env:OOP_LOCAL_HOME }
-    $cache = Join-Path $cacheBase '84b1f41-python3146'
+    New-Item -ItemType Directory -Path $cacheBase -Force | Out-Null
+    $lastRevisionFile = Join-Path $cacheBase 'last-ready-revision.txt'
+    Write-Host 'Checking the latest dev version...'
+    try {
+        $latest = Invoke-RestMethod -Uri 'https://api.github.com/repos/Noaheo/OOPTeamProject/commits/dev' -Headers @{
+            'User-Agent' = 'OOPTeamProject-Local'
+            'Accept' = 'application/vnd.github+json'
+        } -TimeoutSec 8
+        $revision = [string]$latest.sha
+        if ($revision -notmatch '^[0-9a-f]{40}$') { throw 'GitHub returned an invalid project revision.' }
+    }
+    catch {
+        if (-not (Test-Path -LiteralPath $lastRevisionFile)) {
+            throw 'Could not check dev on GitHub. The first setup needs internet access.'
+        }
+        $revision = [IO.File]::ReadAllText($lastRevisionFile).Trim()
+        if ($revision -notmatch '^[0-9a-f]{40}$') { throw 'The saved project revision is invalid.' }
+        $previousCache = Join-Path $cacheBase $revision.Substring(0, 12)
+        foreach ($marker in @('python\runtime.ready', 'project.ready', 'packages.ready')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $previousCache $marker))) {
+                throw 'No fully prepared version is available offline. Connect to the internet and retry.'
+            }
+        }
+        Write-Host "GitHub is unavailable. Using the last prepared version: $revision"
+    }
+    $cache = Join-Path $cacheBase $revision.Substring(0, 12)
     New-Item -ItemType Directory -Path $cache -Force | Out-Null
 
     function Download-File($url, $destination) {
@@ -129,6 +153,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'The required libraries could not be loaded.' }
         Set-Content -LiteralPath (Join-Path $cache 'packages.ready') -Value 'ready'
     }
+    Set-Content -LiteralPath $lastRevisionFile -Value $revision
 
     $port = 8501
     while ($port -le 8520) {
