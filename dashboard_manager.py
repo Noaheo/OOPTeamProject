@@ -12,13 +12,15 @@
 #   - Every feature is registered in PANELS (Open-Closed Principle). An optional teammate module
 #     (such as MapVisualizer) activates automatically as soon as it is added.
 
+from collections import Counter
 from dataclasses import dataclass
 from html import escape
+import re
 
 import pandas as pd
 import streamlit as st
 
-from ui_text import district_name, industry_name
+from ui_text import district_name, industry_name, romanize, short_district_name
 
 
 ALL = "__all__"
@@ -276,10 +278,16 @@ class DashboardManager:
             for code, name in zip(industries.iloc[:, 0], industries.iloc[:, 1])
         }
         districts = self.data_manager.get_district_options()
-        self._district_names = {
-            code: district_name(name)
-            for code, name in zip(districts.iloc[:, 0], districts.iloc[:, 1])
-        }
+        base_names = [(code, name, district_name(name)) for code, name in zip(districts.iloc[:, 0], districts.iloc[:, 1])]
+        counts = Counter(en for _, _, en in base_names)
+        self._district_names = {}
+        for code, kr_name, en_name in base_names:
+            if counts[en_name] > 1:
+                m = re.search(r"\(([^)]+)\)", str(kr_name))
+                tag = romanize(m.group(1).split(",")[0].strip()) if m else str(code)
+                self._district_names[code] = f"{en_name} ({tag})"
+            else:
+                self._district_names[code] = en_name
         periods = self.data_manager.get_period_options()
         years = sorted(periods["year"].unique().tolist(), reverse=True)
         self._available_years = [int(y) for y in years]
@@ -848,8 +856,10 @@ class DashboardManager:
         localized = df.copy()
         if "district_name" in localized.columns and "district_code" in localized.columns:
             localized["district_name"] = [
-                self._district_names.get(code)
-                or (district_name(str(name)) if pd.notna(name) and str(name).strip() else str(code))
+                short_district_name(
+                    self._district_names.get(code)
+                    or (district_name(str(name)) if pd.notna(name) and str(name).strip() else str(code))
+                )
                 for code, name in zip(localized["district_code"], localized["district_name"])
             ]
         return localized
@@ -889,6 +899,8 @@ class DashboardManager:
                 margin=dict(l=8, r=8, t=16, b=8),
                 height=figure.layout.height or 340,
             )
+            if not any(getattr(trace, "type", "") in ("scattermap", "pie") for trace in figure.data):
+                figure.update_layout(yaxis_tickformat=None, yaxis_exponentformat="B")
         except Exception:
             pass
         return figure

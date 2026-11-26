@@ -43,7 +43,7 @@ class DistrictVisualizer:
             title="Commercial District Sales Ranking",
             xaxis_title="Commercial district",
             yaxis_title="Estimated sales (KRW)",
-            yaxis_tickformat=",.0f",
+            yaxis_exponentformat="B",
             xaxis_type="category",
             template=self._template,
         )
@@ -72,7 +72,7 @@ class DistrictVisualizer:
                 title="Multi-District Sales Comparison",
                 xaxis_title="Commercial district",
                 yaxis_title="Estimated sales (KRW)",
-                yaxis_tickformat=",.0f",
+                yaxis_exponentformat="B",
                 xaxis_type="category",
                 template=self._template,
             )
@@ -139,7 +139,7 @@ class DistrictVisualizer:
             title="Multi-District Sales Comparison",
             xaxis_title="Commercial district",
             yaxis_title="Estimated sales (KRW)",
-            yaxis_tickformat=",.0f",
+            yaxis_exponentformat="B",
             xaxis_type="category",
             template=self._template,
         )

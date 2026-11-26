@@ -37,27 +37,49 @@ INDUSTRY_NAMES_EN = {
 
 import re
 
-# Common words translated before romanizing the rest of a district name.
+# Common words translated before romanizing the rest of a district name (longest-first).
 _END = r"(?=$|[\s()·,])"
 _WORDS = [
     (r"_", " "),
     (r"(\d+)번(?:\s*출구)?", r" Exit \1"),
-    (r"관광특구", " Tourist Zone"),
-    (r"전통시장" + _END, " Traditional Market"),
+    (r"관광특구", " Zone"),
+    (r"전통종합시장" + _END, " Market"),
+    (r"전통시장" + _END, " Market"),
+    (r"종합시장" + _END, " Market"),
+    (r"골목시장" + _END, " Market"),
     (r"시장" + _END, " Market"),
+    (r"디지털단지", " Digital"),
+    (r"전자상가", " Electronics"),
+    (r"패션타운", " Fashion"),
+    (r"먹자골목", " Food Alley"),
+    (r"로데오거리", " Rodeo St."),
+    (r"상점가" + _END, " Shops"),
+    (r"상가" + _END, " Arcade"),
     (r"(?<=[가-힣])역" + _END, " Station"),
     (r"아파트" + _END, " Apt."),
-    (r"사거리" + _END, " Intersection"),
-    (r"주민센터" + _END, " Community Center"),
+    (r"사거리" + _END, " Jct."),
+    (r"주민센터" + _END, " Center"),
     (r"공원" + _END, " Park"),
-    (r"초등학교" + _END, " Elementary School"),
-    (r"중학교" + _END, " Middle School"),
-    (r"고등학교" + _END, " High School"),
-    (r"대학교" + _END, " University"),
-    (r"구청" + _END, " District Office"),
-    (r"상가" + _END, " Shopping Arcade"),
-    (r"거리" + _END, " Street"),
+    (r"초등학교" + _END, " Elem."),
+    (r"중학교" + _END, " Mid."),
+    (r"고등학교" + _END, " High"),
+    (r"대학교" + _END, " Univ."),
+    (r"구청" + _END, " Office"),
+    (r"거리" + _END, " St."),
 ]
+
+_DISTRICT_OVERRIDES = {
+    "가산디지털단지": "Gasan Digital",
+    "용산전자상가": "Yongsan Electronics",
+    "명동 남대문 북창동 다동 무교동 관광특구": "Myeongdong·Namdaemun",
+    "종로·청계 관광특구": "Jongno·Cheonggye",
+    "강남 마이스 관광특구": "Gangnam MICE",
+    "동대문패션타운 관광특구": "Dongdaemun Fashion",
+    "이태원 관광특구": "Itaewon",
+    "잠실 관광특구": "Jamsil",
+    "홍대 관광특구": "Hongdae",
+    "동대문종합시장": "Dongdaemun Market",
+}
 
 _INITIAL = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "",
             "j", "jj", "ch", "k", "t", "p", "h"]
@@ -131,4 +153,15 @@ def industry_name(code, korean_name):
 
 
 def district_name(korean_name):
-    return romanize(korean_name)
+    text = str(korean_name).strip()
+    base = re.sub(r"\s*\([^)]*\)", "", text).strip() or text
+    if base in _DISTRICT_OVERRIDES:
+        return _DISTRICT_OVERRIDES[base]
+    return romanize(base)
+
+
+def short_district_name(name, max_len=24):
+    text = str(name).strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"

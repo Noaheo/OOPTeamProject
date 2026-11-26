@@ -15,13 +15,6 @@ class SalesVisualizer:
     def _clean(series):
         return series.astype(object).where(series.notna(), None).tolist()
 
-    @staticmethod
-    def _transaction_labels(data):
-        if "total_transactions" not in data.columns:
-            return ["N/A"] * len(data)
-        return ["N/A" if pd.isna(value) else f"{int(value):,}"
-                for value in data["total_transactions"]]
-
     def _base_bar_figure(self, x_values, y_values, title, x_title, colors, customdata=None, hovertemplate=None):
         figure = go.Figure(go.Bar(
             x=list(x_values),
@@ -36,7 +29,7 @@ class SalesVisualizer:
             xaxis_title=x_title,
             yaxis_title="Sales (KRW)",
             xaxis_type="category",
-            yaxis_tickformat=",.0f",
+            yaxis_exponentformat="B",
             template=self._template,
         )
         return figure
@@ -60,7 +53,7 @@ class SalesVisualizer:
             xaxis_title="Period",
             yaxis_title="Sales (KRW)",
             xaxis_type="category",
-            yaxis_tickformat=",.0f",
+            yaxis_exponentformat="B",
             template=self._template,
         )
         return figure
@@ -74,7 +67,7 @@ class SalesVisualizer:
                 xaxis_title="Quarter",
                 yaxis_title="Sales (KRW)",
                 xaxis_type="category",
-                yaxis_tickformat=",.0f",
+                yaxis_exponentformat="B",
                 template=self._template,
             )
             figure.add_annotation(
@@ -119,20 +112,20 @@ class SalesVisualizer:
             yaxis_title="Sales (KRW)",
             barmode="group",
             xaxis_type="category",
-            yaxis_tickformat=",.0f",
+            yaxis_exponentformat="B",
             template=self._template,
         )
         return figure
 
     def plot_day_types(self, data):
         """Plot Weekday vs. Weekend sales bar chart."""
-        tx = self._transaction_labels(data)
+        tx = self._clean(data["total_transactions"]) if "total_transactions" in data.columns else [None] * len(data)
         shares = (
             ["N/A" if pd.isna(v) else f"{float(v):.1f}%" for v in data["sales_share"]]
             if "sales_share" in data.columns
             else ["N/A"] * len(data)
         )
-        customdata = [[t, s] for t, s in zip(tx, shares)]
+        customdata = [[t if t is not None else 0, s] for t, s in zip(tx, shares)]
         colors = [self._color_palette[i % len(self._color_palette)] for i in range(len(data))]
         return self._base_bar_figure(
             x_values=data["day_type"].tolist(),
@@ -143,7 +136,7 @@ class SalesVisualizer:
             customdata=customdata,
             hovertemplate=(
                 "Type: %{x}<br>Sales: %{y:,.0f} KRW"
-                "<br>Transactions: %{customdata[0]}"
+                "<br>Transactions: %{customdata[0]:,.0f}"
                 "<br>Share: %{customdata[1]}<extra></extra>"
             ),
         )
@@ -153,26 +146,26 @@ class SalesVisualizer:
         weekend_color = self._color_palette[1 % len(self._color_palette)]
         weekday_color = self._color_palette[0]
         colors = [weekend_color if day in ("Sat", "Sun") else weekday_color for day in data["day"]]
-        tx = self._transaction_labels(data)
+        tx = self._clean(data["total_transactions"]) if "total_transactions" in data.columns else [0] * len(data)
         return self._base_bar_figure(
             x_values=data["day"].tolist(),
             y_values=self._clean(data["total_sales"]),
             title="Sales by Day of Week",
             x_title="Day",
             colors=colors,
-            customdata=tx,
-            hovertemplate="Day: %{x}<br>Sales: %{y:,.0f} KRW<br>Transactions: %{customdata}<extra></extra>",
+            customdata=[t if t is not None else 0 for t in tx],
+            hovertemplate="Day: %{x}<br>Sales: %{y:,.0f} KRW<br>Transactions: %{customdata:,.0f}<extra></extra>",
         )
 
     def plot_time_slots(self, data):
         """Plot sales by time slot."""
-        tx = self._transaction_labels(data)
+        tx = self._clean(data["total_transactions"]) if "total_transactions" in data.columns else [0] * len(data)
         return self._base_bar_figure(
             x_values=data["time_slot"].tolist(),
             y_values=self._clean(data["total_sales"]),
             title="Sales by Time of Day",
             x_title="Time Slot",
             colors=self._color_palette[0],
-            customdata=tx,
-            hovertemplate="Time: %{x}<br>Sales: %{y:,.0f} KRW<br>Transactions: %{customdata}<extra></extra>",
+            customdata=[t if t is not None else 0 for t in tx],
+            hovertemplate="Time: %{x}<br>Sales: %{y:,.0f} KRW<br>Transactions: %{customdata:,.0f}<extra></extra>",
         )
